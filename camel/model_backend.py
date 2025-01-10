@@ -17,6 +17,8 @@ from typing import Any, Dict
 import openai
 import tiktoken
 
+import camel.typing
+from camel.localai import LocalAI, LocalChatCompletion
 from camel.typing import ModelType
 from chatdev.statistics import prompt_cost
 from chatdev.utils import log_visualize
@@ -30,11 +32,19 @@ except ImportError:
 
 import os
 
-OPENAI_API_KEY = os.environ['OPENAI_API_KEY']
+DECENTRALIZE = False
+
 if 'BASE_URL' in os.environ:
     BASE_URL = os.environ['BASE_URL']
 else:
     BASE_URL = None
+if 'RUN_LOCALLY' in os.environ:
+    RUN_LOCALLY = os.environ['RUN_LOCALLY']
+    if 'DECENTRALIZE' in os.environ:
+        DECENTRALIZE = os.environ['DECENTRALIZE']
+else:
+    RUN_LOCALLY = False
+    OPENAI_API_KEY = os.environ['OPENAI_API_KEY']
 
 
 class ModelBackend(ABC):
@@ -68,9 +78,45 @@ class OpenAIModel(ModelBackend):
         encoding = tiktoken.encoding_for_model(self.model_type.value)
         num_prompt_tokens = len(encoding.encode(string))
         gap_between_send_receive = 15 * len(kwargs["messages"])
-        num_prompt_tokens += gap_between_send_receive
+        num_prompt_tokens += gap_between_send_receive       
+        if RUN_LOCALLY:
+            client = LocalAI(
+                base_url=BASE_URL,
+                decentralize=DECENTRALIZE,
+            )
 
-        if openai_new_api:
+            # numbers in this map are more dependent on the host's hardware rather than the model itself
+            num_max_token_map = {
+                
+                'phi4:14b-q8_0': 16384,
+            }
+
+            # ERR: Could not automatically map llama2-uncensored:7b to a tokeniser.
+            #      Please use `tiktok.get_encoding` to explicitly get the tokeniser you expect
+            # We do not have to set this, it's just a tokenizing agent and estimates are enough.
+            # note: Enum entry was added, this did not fix the underlying issue
+            #self.model_type = ModelType('llama2-uncensored:7b')
+
+            num_max_token = num_max_token_map['phi4:14b-q8_0']
+            num_max_completion_tokens = num_max_token - num_prompt_tokens
+            self.model_config_dict['max_tokens'] = num_max_completion_tokens
+
+            response = client.chat.completions.create(*args, **kwargs, model=self.model_type.value,
+                                                      **self.model_config_dict)
+
+            # note: removed cost calculation, completely unnecessary for locally run models
+
+            log_visualize(
+                "**[OpenAI_Usage_Info Receive]**\nprompt_tokens: {}\ncompletion_tokens: {}\ntotal_tokens: {}\n".format(
+                    response.usage.prompt_tokens, response.usage.completion_tokens, response.usage.total_tokens))
+
+            # todo: response is not an instance of ChatCompletion, causing this error to trigger
+            #       either remove any constraints, or perfectly imitate ChatCompletion and overwrite typename
+            # for now opting-in for the former option - removing constrains while recreating the necessary parts
+            if not isinstance(response, LocalChatCompletion):
+                raise RuntimeError("Unexpected return from ollama API")
+            return response
+        elif openai_new_api:
             # Experimental, add base_url
             if BASE_URL:
                 client = openai.OpenAI(
@@ -95,6 +141,7 @@ class OpenAIModel(ModelBackend):
                 "gpt-4o-mini": 16384, #100000
                 "deepseek-chat": 8192, #100000
                 "deepseek-coder": 8192, #100000
+                "phi4:14b-q8_0": 16384,
             }
             num_max_token = num_max_token_map[self.model_type.value]
             num_max_completion_tokens = num_max_token - num_prompt_tokens
@@ -130,6 +177,7 @@ class OpenAIModel(ModelBackend):
                 "gpt-4o-mini": 16384, #100000
                 "deepseek-chat": 8192, #100000
                 "deepseek-coder": 8192, #100000
+                "phi4:14b-q8_0": 16384,
             }
             num_max_token = num_max_token_map[self.model_type.value]
             num_max_completion_tokens = num_max_token - num_prompt_tokens
@@ -194,6 +242,7 @@ class ModelFactory:
             ModelType.GPT_4O_MINI,
             ModelType.DEEPSEEK_CHAT,
             ModelType.DEEPSEEK_CODER,
+            ModelType.PHI4,
             None
         }:
             model_class = OpenAIModel

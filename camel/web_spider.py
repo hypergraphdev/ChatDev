@@ -1,23 +1,43 @@
 import requests
 from bs4 import BeautifulSoup
 import openai
-from openai import OpenAI
 import wikipediaapi
 import os
-import time
+from camel.localai import LocalAI
 
-self_api_key = os.environ.get('OPENAI_API_KEY')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 BASE_URL = os.environ.get('BASE_URL')
+RUN_LOCALLY = False
+DECENTRALIZE = False
 
-if BASE_URL:
-    client = openai.OpenAI(
-        api_key=self_api_key,
-        base_url=BASE_URL,
+if 'BASE_URL' in os.environ:
+    BASE_URL = os.environ['BASE_URL']
+else:
+    BASE_URL = None
+if 'RUN_LOCALLY' in os.environ:
+    RUN_LOCALLY = os.environ['RUN_LOCALLY']
+    if 'DECENTRALIZE' in os.environ:
+        DECENTRALIZE = os.environ['DECENTRALIZE']
+else:
+    RUN_LOCALLY = False
+    OPENAI_API_KEY = os.environ['OPENAI_API_KEY']
+
+if RUN_LOCALLY:
+    client = LocalAI(
+        base_url=BASE_URL,  # may be None
+        decentralize=DECENTRALIZE,
     )
 else:
-    client = openai.OpenAI(
-        api_key=self_api_key
-    )
+    if BASE_URL:
+        client = openai.OpenAI(
+            api_key=OPENAI_API_KEY,
+            base_url=BASE_URL,
+        )
+    else:
+        client = openai.OpenAI(
+            api_key=OPENAI_API_KEY
+        )
+
 
 def get_baidu_baike_content(keyword):
     # design api by the baidubaike

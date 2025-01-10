@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =========== Copyright 2023 @ CAMEL-AI.org. All Rights Reserved. ===========
+import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -20,6 +21,7 @@ from tenacity.wait import wait_exponential
 
 from camel.agents import BaseAgent
 from camel.configs import ChatGPTConfig
+from camel.localai import LocalChatCompletion
 from camel.messages import ChatMessage, MessageType, SystemMessage
 from camel.model_backend import ModelBackend, ModelFactory
 from camel.typing import ModelType, RoleType
@@ -35,6 +37,11 @@ try:
     openai_new_api = True  # new openai api version
 except ImportError:
     openai_new_api = False  # old openai api version
+
+RUN_LOCALLY = False
+if 'RUN_LOCALLY' in os.environ:
+    RUN_LOCALLY = os.environ['RUN_LOCALLY']
+    openai_new_api = True  # using new_api when running LocalAI (ollama)
 
 
 @dataclass(frozen=True)
@@ -235,9 +242,26 @@ class ChatAgent(BaseAgent):
         output_messages: Optional[List[ChatMessage]]
         info: Dict[str, Any]
 
+        print('tokens used for conversation:', num_tokens)
+
         if num_tokens < self.model_token_limit:
             response = self.model_backend.run(messages=openai_messages)
-            if openai_new_api:
+            if RUN_LOCALLY:
+                if not isinstance(response, LocalChatCompletion):
+                    raise RuntimeError("LocalAI returned unexpected struct")
+                # fixme: choice.message may cause issues here, look further into it
+                output_messages = [
+                    ChatMessage(role_name=self.role_name, role_type=self.role_type,
+                                meta_dict=dict(), content=choice.message.content, role=choice.message.role)
+                    for choice in response.choices
+                ]
+                info = self.get_info(
+                    response.id,
+                    response.usage,
+                    [str(choice.finish_reason) for choice in response.choices],
+                    num_tokens,
+                )
+            elif openai_new_api:
                 if not isinstance(response, ChatCompletion):
                     raise RuntimeError("OpenAI returned unexpected struct")
                 output_messages = [
@@ -280,6 +304,9 @@ class ChatAgent(BaseAgent):
                 ["max_tokens_exceeded_by_camel"],
                 num_tokens,
             )
+
+        print('finalizing chat_agent\'s .step method')
+        print('^ returning:', ChatAgentResponse(output_messages, self.terminated, info))
 
         return ChatAgentResponse(output_messages, self.terminated, info)
 

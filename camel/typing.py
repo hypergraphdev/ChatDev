@@ -54,6 +54,7 @@ class ModelType(Enum):
     GPT_4O_MINI = "gpt-4o-mini"
     DEEPSEEK_CHAT= "deepseek-chat"
     DEEPSEEK_CODER= "deepseek-coder"
+    PHI4 = "phi4:14b-q8_0"
 
     STUB = "stub"
 

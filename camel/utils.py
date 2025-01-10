@@ -94,6 +94,7 @@ def num_tokens_from_messages(
         ModelType.STUB,
         ModelType.DEEPSEEK_CHAT,
         ModelType.DEEPSEEK_CODER,
+        ModelType.PHI4,
     }:
         return count_tokens_openai_chat_models(messages, encoding)
     else:
@@ -131,11 +132,13 @@ def get_model_token_limit(model: ModelType) -> int:
     elif model == ModelType.GPT_4O:
         return 128000
     elif model == ModelType.DEEPSEEK_CHAT:
-        return 128000
+        return 8192
     elif model == ModelType.DEEPSEEK_CODER:
-        return 128000
+        return 8192
     elif model == ModelType.GPT_4O_MINI:
         return 128000
+    elif model == ModelType.PHI4:
+        return 16384
     else:
         raise ValueError("Unknown model type")
 
@@ -161,6 +164,8 @@ def openai_api_key_required(func: F) -> F:
         if not isinstance(self, ChatAgent):
             raise ValueError("Expected ChatAgent")
         if self.model == ModelType.STUB:
+            return func(self, *args, **kwargs)
+        elif 'RUN_LOCALLY' in os.environ:
             return func(self, *args, **kwargs)
         elif 'OPENAI_API_KEY' in os.environ:
             return func(self, *args, **kwargs)

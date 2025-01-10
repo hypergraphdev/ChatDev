@@ -19,6 +19,7 @@ import sys
 from camel.typing import ModelType
 
 root = os.path.dirname(__file__)
+os.environ["NO_PROXY"] = "192.168.1.49"
 sys.path.append(root)
 
 from chatdev.chat_chain import ChatChain
@@ -34,7 +35,6 @@ except ImportError:
         "Warning: Your OpenAI version is outdated. \n "
         "Please update as specified in requirement.txt. \n "
         "The old API interface is deprecated and will no longer be supported.")
-
 
 def get_config(company):
     """
@@ -70,6 +70,8 @@ def get_config(company):
 
 
 parser = argparse.ArgumentParser(description='argparse')
+parser.add_argument('--local', action='store_true',
+                    help="Switch ChatDev to use local Ollama API instead of OpenAI API. Warning: turn on Ollama first!")
 parser.add_argument('--config', type=str, default="Default",
                     help="Name of config, which is used to load configuration under CompanyConfig/")
 parser.add_argument('--org', type=str, default="DefaultOrganization",
@@ -78,10 +80,11 @@ parser.add_argument('--task', type=str, default="Develop a basic Gomoku game.",
                     help="Prompt of software")
 parser.add_argument('--name', type=str, default="Gomoku",
                     help="Name of software, your software will be generated in WareHouse/name_org_timestamp")
-parser.add_argument('--model', type=str, default="DEEPSEEK_CHAT",
+parser.add_argument('--model', type=str, default="PHI4",
                     help="GPT Model, choose from {'GPT_3_5_TURBO', 'GPT_4', 'GPT_4_TURBO', 'GPT_4O', 'GPT_4O_MINI','DEEPSEEK_CHAT', 'DEEPSEEK_CODER'}")
 parser.add_argument('--path', type=str, default="",
                     help="Your file directory, ChatDev will build upon your software in the Incremental mode")
+
 args = parser.parse_args()
 
 # Start ChatDev
@@ -92,18 +95,24 @@ args = parser.parse_args()
 config_path, config_phase_path, config_role_path = get_config(args.config)
 args2type = {'GPT_3_5_TURBO': ModelType.GPT_3_5_TURBO,
              'GPT_4': ModelType.GPT_4,
-            #  'GPT_4_32K': ModelType.GPT_4_32k,
+             'GPT_4_32K': ModelType.GPT_4_32k,
              'GPT_4_TURBO': ModelType.GPT_4_TURBO,
+             'GPT_4_TURBO_V': ModelType.GPT_4_TURBO_V,
             #  'GPT_4_TURBO_V': ModelType.GPT_4_TURBO_V
-            'GPT_4O': ModelType.GPT_4O,
-            'GPT_4O_MINI': ModelType.GPT_4O_MINI,
-            'DEEPSEEK_CHAT': ModelType.DEEPSEEK_CHAT,
-            'DEEPSEEK_CODER': ModelType.DEEPSEEK_CODER,
+             'GPT_4O': ModelType.GPT_4O,
+             'GPT_4O_MINI': ModelType.GPT_4O_MINI,
+             'DEEPSEEK_CHAT': ModelType.DEEPSEEK_CHAT,
+             'DEEPSEEK_CODER': ModelType.DEEPSEEK_CODER,
+             'PHI4': ModelType.PHI4,
              }
 if openai_new_api:
     args2type['GPT_3_5_TURBO'] = ModelType.GPT_3_5_TURBO_NEW
+# todo: convert to global variable instead of an env var
+if args.local:
+    os.environ["RUN_LOCALLY"] = "1"
 
-chat_chain = ChatChain(config_path=config_path,
+chat_chain = ChatChain(use_ollama=args.local,
+                       config_path=config_path,
                        config_phase_path=config_phase_path,
                        config_role_path=config_role_path,
                        task_prompt=args.task,
