@@ -93,6 +93,8 @@ class OpenAIModel(ModelBackend):
                 "gpt-4-turbo": 100000,
                 "gpt-4o": 4096, #100000
                 "gpt-4o-mini": 16384, #100000
+                "deepseek-chat": 8192, #100000
+                "deepseek-coder": 8192, #100000
             }
             num_max_token = num_max_token_map[self.model_type.value]
             num_max_completion_tokens = num_max_token - num_prompt_tokens
@@ -126,6 +128,8 @@ class OpenAIModel(ModelBackend):
                 "gpt-4-turbo": 100000,
                 "gpt-4o": 4096, #100000
                 "gpt-4o-mini": 16384, #100000
+                "deepseek-chat": 8192, #100000
+                "deepseek-coder": 8192, #100000
             }
             num_max_token = num_max_token_map[self.model_type.value]
             num_max_completion_tokens = num_max_token - num_prompt_tokens
@@ -188,6 +192,8 @@ class ModelFactory:
             ModelType.GPT_4_TURBO_V,
             ModelType.GPT_4O,
             ModelType.GPT_4O_MINI,
+            ModelType.DEEPSEEK_CHAT,
+            ModelType.DEEPSEEK_CODER,
             None
         }:
             model_class = OpenAIModel
